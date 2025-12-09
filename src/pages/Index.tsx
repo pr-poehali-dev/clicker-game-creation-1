@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
@@ -9,15 +10,10 @@ import ShopTab from '@/components/game/ShopTab';
 import AchievementsTab from '@/components/game/AchievementsTab';
 import LeaderboardTab from '@/components/game/LeaderboardTab';
 import InfoTab from '@/components/game/InfoTab';
+import { saveGame, loadGame, resetGame, getAutoSaveInterval } from '@/utils/gameStorage';
 
 const Index = () => {
-  const [currency, setCurrency] = useState<Currency>({ gold: 0, crystals: 0, mithril: 0 });
-  const [clickPower, setClickPower] = useState(1);
-  const [autoGoldPerSecond, setAutoGoldPerSecond] = useState(0);
-  const [totalClicks, setTotalClicks] = useState(0);
-  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number }>>([]);
-
-  const [upgrades, setUpgrades] = useState<Upgrade[]>([
+  const initialUpgrades: Upgrade[] = [
     {
       id: 'click-power-1',
       name: 'Заточка меча',
@@ -54,16 +50,26 @@ const Index = () => {
       level: 0,
       maxLevel: 10,
     },
-  ]);
+  ];
 
-  const [achievements, setAchievements] = useState<Achievement[]>([
+  const initialAchievements: Achievement[] = [
     { id: 'clicks-10', name: 'Новичок', description: 'Сделать 10 кликов', requirement: 10, progress: 0, unlocked: false, icon: 'Sparkles', reward: { gold: 20, crystals: 0, mithril: 0 } },
     { id: 'clicks-100', name: 'Воин', description: 'Сделать 100 кликов', requirement: 100, progress: 0, unlocked: false, icon: 'Sword', reward: { gold: 100, crystals: 2, mithril: 0 } },
     { id: 'clicks-1000', name: 'Герой', description: 'Сделать 1000 кликов', requirement: 1000, progress: 0, unlocked: false, icon: 'Crown', reward: { gold: 1000, crystals: 10, mithril: 1 } },
     { id: 'gold-100', name: 'Богач', description: 'Накопить 100 золота', requirement: 100, progress: 0, unlocked: false, icon: 'Coins', reward: { gold: 50, crystals: 1, mithril: 0 } },
     { id: 'gold-1000', name: 'Золотая лихорадка', description: 'Накопить 1000 золота', requirement: 1000, progress: 0, unlocked: false, icon: 'TrendingUp', reward: { gold: 500, crystals: 5, mithril: 0 } },
     { id: 'crystals-10', name: 'Коллекционер', description: 'Накопить 10 кристаллов', requirement: 10, progress: 0, unlocked: false, icon: 'Gem', reward: { gold: 200, crystals: 5, mithril: 1 } },
-  ]);
+  ];
+
+  const [currency, setCurrency] = useState<Currency>({ gold: 0, crystals: 0, mithril: 0 });
+  const [clickPower, setClickPower] = useState(1);
+  const [autoGoldPerSecond, setAutoGoldPerSecond] = useState(0);
+  const [totalClicks, setTotalClicks] = useState(0);
+  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const [upgrades, setUpgrades] = useState<Upgrade[]>(initialUpgrades);
+  const [achievements, setAchievements] = useState<Achievement[]>(initialAchievements);
 
   const [leaderboard] = useState<Leader[]>([
     { rank: 1, name: 'Артас Повелитель', gold: 50000 },
@@ -73,6 +79,39 @@ const Index = () => {
     { rank: 5, name: 'Тёмный маг', gold: 12000 },
     { rank: 6, name: 'Вы', gold: 0 },
   ]);
+
+  useEffect(() => {
+    const savedGame = loadGame();
+    if (savedGame) {
+      setCurrency(savedGame.currency);
+      setClickPower(savedGame.clickPower);
+      setAutoGoldPerSecond(savedGame.autoGoldPerSecond);
+      setTotalClicks(savedGame.totalClicks);
+      setUpgrades(savedGame.upgrades);
+      setAchievements(savedGame.achievements);
+      toast.success('Прогресс загружен!', {
+        description: `Последнее сохранение: ${new Date(savedGame.lastSaved).toLocaleString('ru-RU')}`,
+      });
+    }
+    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const interval = setInterval(() => {
+      saveGame({
+        currency,
+        clickPower,
+        autoGoldPerSecond,
+        totalClicks,
+        upgrades,
+        achievements,
+      });
+    }, getAutoSaveInterval());
+
+    return () => clearInterval(interval);
+  }, [isLoaded, currency, clickPower, autoGoldPerSecond, totalClicks, upgrades, achievements]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -209,6 +248,31 @@ const Index = () => {
     return Math.floor(num).toString();
   };
 
+  const handleResetGame = () => {
+    if (window.confirm('Вы уверены, что хотите сбросить весь прогресс? Это действие нельзя отменить.')) {
+      resetGame();
+      setCurrency({ gold: 0, crystals: 0, mithril: 0 });
+      setClickPower(1);
+      setAutoGoldPerSecond(0);
+      setTotalClicks(0);
+      setUpgrades(initialUpgrades);
+      setAchievements(initialAchievements);
+      toast.success('Игра сброшена! Начните заново.');
+    }
+  };
+
+  const handleManualSave = () => {
+    saveGame({
+      currency,
+      clickPower,
+      autoGoldPerSecond,
+      totalClicks,
+      upgrades,
+      achievements,
+    });
+    toast.success('Прогресс сохранён вручную!');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f0c1a] via-[#1a1425] to-[#1a1f2c] text-foreground overflow-hidden">
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtNi42MjcgMC0xMiA1LjM3My0xMiAxMnM1LjM3MyAxMiAxMiAxMiAxMi01LjM3MyAxMi0xMi01LjM3My0xMi0xMi0xMnptMCAyMmMtNS41MjMgMC0xMC00LjQ3Ny0xMC0xMHM0LjQ3Ny0xMCAxMC0xMCAxMCA0LjQ3NyAxMCAxMC00LjQ3NyAxMC0xMCAxMHoiIGZpbGw9IiM5Yjg3ZjUiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvZz48L3N2Zz4=')] opacity-30"></div>
@@ -219,6 +283,16 @@ const Index = () => {
             Королевство Кликов
           </h1>
           <p className="text-muted-foreground text-lg">Собирай ресурсы и стань легендой</p>
+          <div className="flex items-center justify-center gap-3 mt-4">
+            <Button onClick={handleManualSave} variant="outline" size="sm">
+              <Icon name="Save" size={16} className="mr-2" />
+              Сохранить
+            </Button>
+            <Button onClick={handleResetGame} variant="destructive" size="sm">
+              <Icon name="RotateCcw" size={16} className="mr-2" />
+              Сброс игры
+            </Button>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
