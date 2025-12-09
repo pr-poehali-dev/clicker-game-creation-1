@@ -67,6 +67,17 @@
     font-family: "Cinzel", serif;
   }
 
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (min-width: 480px) {
+    .xs\:inline {
+      display: inline;
+    }
+  }
+
   @keyframes pulse-glow {
     0%,
     100% {
