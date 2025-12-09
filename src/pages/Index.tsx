@@ -31,6 +31,7 @@ interface Achievement {
   progress: number;
   unlocked: boolean;
   icon: string;
+  reward: Currency;
 }
 
 interface Leader {
@@ -86,12 +87,12 @@ const Index = () => {
   ]);
 
   const [achievements, setAchievements] = useState<Achievement[]>([
-    { id: 'clicks-10', name: 'Новичок', description: 'Сделать 10 кликов', requirement: 10, progress: 0, unlocked: false, icon: 'Sparkles' },
-    { id: 'clicks-100', name: 'Воин', description: 'Сделать 100 кликов', requirement: 100, progress: 0, unlocked: false, icon: 'Sword' },
-    { id: 'clicks-1000', name: 'Герой', description: 'Сделать 1000 кликов', requirement: 1000, progress: 0, unlocked: false, icon: 'Crown' },
-    { id: 'gold-100', name: 'Богач', description: 'Накопить 100 золота', requirement: 100, progress: 0, unlocked: false, icon: 'Coins' },
-    { id: 'gold-1000', name: 'Золотая лихорадка', description: 'Накопить 1000 золота', requirement: 1000, progress: 0, unlocked: false, icon: 'TrendingUp' },
-    { id: 'crystals-10', name: 'Коллекционер', description: 'Накопить 10 кристаллов', requirement: 10, progress: 0, unlocked: false, icon: 'Gem' },
+    { id: 'clicks-10', name: 'Новичок', description: 'Сделать 10 кликов', requirement: 10, progress: 0, unlocked: false, icon: 'Sparkles', reward: { gold: 20, crystals: 0, mithril: 0 } },
+    { id: 'clicks-100', name: 'Воин', description: 'Сделать 100 кликов', requirement: 100, progress: 0, unlocked: false, icon: 'Sword', reward: { gold: 100, crystals: 2, mithril: 0 } },
+    { id: 'clicks-1000', name: 'Герой', description: 'Сделать 1000 кликов', requirement: 1000, progress: 0, unlocked: false, icon: 'Crown', reward: { gold: 1000, crystals: 10, mithril: 1 } },
+    { id: 'gold-100', name: 'Богач', description: 'Накопить 100 золота', requirement: 100, progress: 0, unlocked: false, icon: 'Coins', reward: { gold: 50, crystals: 1, mithril: 0 } },
+    { id: 'gold-1000', name: 'Золотая лихорадка', description: 'Накопить 1000 золота', requirement: 1000, progress: 0, unlocked: false, icon: 'TrendingUp', reward: { gold: 500, crystals: 5, mithril: 0 } },
+    { id: 'crystals-10', name: 'Коллекционер', description: 'Накопить 10 кристаллов', requirement: 10, progress: 0, unlocked: false, icon: 'Gem', reward: { gold: 200, crystals: 5, mithril: 1 } },
   ]);
 
   const [leaderboard] = useState<Leader[]>([
@@ -207,8 +208,19 @@ const Index = () => {
         const isNowUnlocked = currentProgress >= achievement.requirement;
 
         if (!wasUnlocked && isNowUnlocked) {
+          setCurrency((prevCurrency) => ({
+            gold: prevCurrency.gold + achievement.reward.gold,
+            crystals: prevCurrency.crystals + achievement.reward.crystals,
+            mithril: prevCurrency.mithril + achievement.reward.mithril,
+          }));
+          
+          const rewardText = [];
+          if (achievement.reward.gold > 0) rewardText.push(`${achievement.reward.gold} золота`);
+          if (achievement.reward.crystals > 0) rewardText.push(`${achievement.reward.crystals} кристаллов`);
+          if (achievement.reward.mithril > 0) rewardText.push(`${achievement.reward.mithril} мифрила`);
+          
           toast.success(`🏆 Достижение разблокировано: ${achievement.name}`, {
-            description: achievement.description,
+            description: `${achievement.description}. Награда: ${rewardText.join(', ')}`,
           });
         }
 
@@ -433,6 +445,30 @@ const Index = () => {
                           {achievement.unlocked && <Icon name="Check" size={16} className="text-primary" />}
                         </h3>
                         <p className="text-sm text-muted-foreground mb-2">{achievement.description}</p>
+                        <div className="flex items-center gap-2 mb-2 text-xs">
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Icon name="Gift" size={12} />
+                            Награда:
+                          </Badge>
+                          {achievement.reward.gold > 0 && (
+                            <span className="flex items-center gap-1 text-[hsl(var(--gold))]">
+                              <Icon name="Coins" size={12} />
+                              {achievement.reward.gold}
+                            </span>
+                          )}
+                          {achievement.reward.crystals > 0 && (
+                            <span className="flex items-center gap-1 text-[hsl(var(--crystal))]">
+                              <Icon name="Gem" size={12} />
+                              {achievement.reward.crystals}
+                            </span>
+                          )}
+                          {achievement.reward.mithril > 0 && (
+                            <span className="flex items-center gap-1 text-[hsl(var(--mithril))]">
+                              <Icon name="Star" size={12} />
+                              {achievement.reward.mithril}
+                            </span>
+                          )}
+                        </div>
                         <Progress
                           value={(achievement.progress / achievement.requirement) * 100}
                           className="h-2"
