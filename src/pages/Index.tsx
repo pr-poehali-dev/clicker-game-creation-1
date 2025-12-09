@@ -10,7 +10,9 @@ import ShopTab from '@/components/game/ShopTab';
 import AchievementsTab from '@/components/game/AchievementsTab';
 import LeaderboardTab from '@/components/game/LeaderboardTab';
 import InfoTab from '@/components/game/InfoTab';
+import DailyReward from '@/components/game/DailyReward';
 import { saveGame, loadGame, resetGame, getAutoSaveInterval } from '@/utils/gameStorage';
+import { soundManager } from '@/utils/soundEffects';
 
 const Index = () => {
   const initialUpgrades: Upgrade[] = [
@@ -67,6 +69,8 @@ const Index = () => {
   const [totalClicks, setTotalClicks] = useState(0);
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showStats, setShowStats] = useState(false);
 
   const [upgrades, setUpgrades] = useState<Upgrade[]>(initialUpgrades);
   const [achievements, setAchievements] = useState<Achievement[]>(initialAchievements);
@@ -146,6 +150,7 @@ const Index = () => {
       gold: prev.gold + clickPower,
     }));
     setTotalClicks((prev) => prev + 1);
+    soundManager.playClick();
   };
 
   const buyUpgrade = (upgrade: Upgrade) => {
@@ -161,6 +166,7 @@ const Index = () => {
 
     if (!canAfford) {
       toast.error('Недостаточно ресурсов');
+      soundManager.playError();
       return;
     }
 
@@ -198,6 +204,7 @@ const Index = () => {
     }
 
     toast.success(`Улучшение "${upgrade.name}" куплено!`);
+    soundManager.playPurchase();
   };
 
   const checkAchievements = () => {
@@ -231,6 +238,7 @@ const Index = () => {
           toast.success(`🏆 Достижение разблокировано: ${achievement.name}`, {
             description: `${achievement.description}. Награда: ${rewardText.join(', ')}`,
           });
+          soundManager.playAchievement();
         }
 
         return {
@@ -271,6 +279,45 @@ const Index = () => {
       achievements,
     });
     toast.success('Прогресс сохранён вручную!');
+    soundManager.playUpgrade();
+  };
+
+  const toggleSound = () => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    soundManager.toggleSound(newState);
+    toast.success(newState ? '🔊 Звук включен' : '🔇 Звук выключен');
+  };
+
+  const calculateTotalGold = () => {
+    return currency.gold + (currency.crystals * 100) + (currency.mithril * 1000);
+  };
+
+  const getPlayTime = () => {
+    const savedGame = loadGame();
+    if (!savedGame) return 'Новая игра';
+    const diff = Date.now() - savedGame.lastSaved;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) return `${hours}ч ${minutes % 60}м назад`;
+    if (minutes > 0) return `${minutes}м назад`;
+    return 'только что';
+  };
+
+  const handleDailyReward = (reward: Currency) => {
+    setCurrency((prev) => ({
+      gold: prev.gold + reward.gold,
+      crystals: prev.crystals + reward.crystals,
+      mithril: prev.mithril + reward.mithril,
+    }));
+    const rewardText = [];
+    if (reward.gold > 0) rewardText.push(`${reward.gold} золота`);
+    if (reward.crystals > 0) rewardText.push(`${reward.crystals} кристаллов`);
+    if (reward.mithril > 0) rewardText.push(`${reward.mithril} мифрила`);
+    toast.success('🎁 Ежедневная награда получена!', {
+      description: rewardText.join(', '),
+    });
+    soundManager.playAchievement();
   };
 
   return (
@@ -288,12 +335,61 @@ const Index = () => {
               <Icon name="Save" size={16} className="mr-2" />
               Сохранить
             </Button>
+            <Button onClick={toggleSound} variant="outline" size="sm">
+              <Icon name={soundEnabled ? "Volume2" : "VolumeX"} size={16} className="mr-2" />
+              Звук
+            </Button>
+            <Button onClick={() => setShowStats(!showStats)} variant="outline" size="sm">
+              <Icon name="BarChart3" size={16} className="mr-2" />
+              Статистика
+            </Button>
             <Button onClick={handleResetGame} variant="destructive" size="sm">
               <Icon name="RotateCcw" size={16} className="mr-2" />
-              Сброс игры
+              Сброс
             </Button>
           </div>
         </header>
+
+        {showStats && (
+          <Card className="bg-card/80 backdrop-blur-sm border-border p-6 mb-6">
+            <h2 className="text-2xl font-fantasy mb-4 flex items-center gap-2">
+              <Icon name="BarChart3" size={28} />
+              Статистика игрока
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">{totalClicks}</div>
+                <div className="text-sm text-muted-foreground">Всего кликов</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-accent">{formatNumber(calculateTotalGold())}</div>
+                <div className="text-sm text-muted-foreground">Общая ценность</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-secondary">{achievements.filter(a => a.unlocked).length}/{achievements.length}</div>
+                <div className="text-sm text-muted-foreground">Достижений</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-[hsl(var(--crystal))]">{upgrades.reduce((sum, u) => sum + u.level, 0)}</div>
+                <div className="text-sm text-muted-foreground">Уровень улучшений</div>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Последняя активность:</span>
+                <span className="font-semibold">{getPlayTime()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm mt-2">
+                <span className="text-muted-foreground">Золото в секунду:</span>
+                <span className="font-semibold text-[hsl(var(--gold))]">+{autoGoldPerSecond}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm mt-2">
+                <span className="text-muted-foreground">Эффективность клика:</span>
+                <span className="font-semibold text-primary">×{clickPower}</span>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card className="bg-card/80 backdrop-blur-sm border-border p-6">
@@ -355,12 +451,19 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="game" className="space-y-6">
-            <GamePortal
-              clickPower={clickPower}
-              totalClicks={totalClicks}
-              particles={particles}
-              onPortalClick={handleClick}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <GamePortal
+                  clickPower={clickPower}
+                  totalClicks={totalClicks}
+                  particles={particles}
+                  onPortalClick={handleClick}
+                />
+              </div>
+              <div>
+                <DailyReward onClaim={handleDailyReward} />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="shop" className="space-y-4">
